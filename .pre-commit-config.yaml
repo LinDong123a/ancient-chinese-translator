@@ -1,0 +1,27 @@
+repos:
+-   repo: https://gitee.com/ai-performance/pre-commit-hooks
+    rev: v2.3.0
+    hooks:
+    -   id: check-yaml
+    -   id: end-of-file-fixer
+        files: .+.py
+    -   id: trailing-whitespace
+        files: .+.py
+-   repo: https://gitee.com/mirrors_asottile/add-trailing-comma
+    rev: v2.1.0
+    hooks:
+    -   id: add-trailing-comma
+-   repo: https://gitee.com/mirrors_pre-commit/mirrors-isort
+    rev: v5.7.0
+    hooks:
+    - id: isort
+      args: ['-m', 'VERTICAL_GRID_GROUPED', '--tc']
+-   repo: https://gitee.com/mirrors_gitlab_pycqa/flake8
+    rev: '3.8.4'
+    hooks:
+    -   id: flake8
+        args: ['--config=.flake8']
+        additional_dependencies:
+          - flake8-docstrings==1.5.0
+          - flake8-comprehensions==3.3.1
+          - flake8-bugbear==21.3.1
