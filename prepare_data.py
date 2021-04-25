@@ -4,6 +4,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List, Tuple, Union
 
+from data.tokenization import CharTokenizer
+
 TRAIN_FILE_NAME = "train.tsv"
 TEST_FILE_NAME = "test.tsv"
 VALID_FILE_NAME = "valid.tsv"
@@ -26,6 +28,7 @@ def parse_args():
         "--valid_file_name", type=str, default=VALID_FILE_NAME, help="保存的验证集文件名",
     )
     parser.add_argument("--seed", type=int, default=100, help="划分数据集时的随机种子")
+    parser.add_argument("--min_freq", type=int, default=100, help="词表的最小值")
 
     return parser.parse_args()
 
@@ -117,7 +120,7 @@ def save_pair_to_tsv_file(pairs: List[Tuple[str, str]], fpath: Union[str, Path])
 
     with fpath.open("w", encoding="utf-8") as wfile:
         for pair0, pair1 in pairs:
-            wfile.write(f"{pair0}\t{pair1}")
+            wfile.write(f"{pair0}\t{pair1}\n")
 
 
 if __name__ == "__main__":
@@ -131,12 +134,21 @@ if __name__ == "__main__":
 
     print("number of pairs", len(all_text_pair))
 
+    src_tokenizer, trg_tokenizer = CharTokenizer(), CharTokenizer()
+
     random.seed(args.seed)
     random.shuffle(all_text_pair)
 
     test_size, valid_size = args.test_size, args.valid_size
     if test_size + valid_size >= 1:
         raise ValueError("Sum of test size and valid size must be less than 1")
+
+    # tokenize text
+    for idx, (src_text, trg_text) in enumerate(all_text_pair):
+        all_text_pair[idx] = (
+            " ".join(src_tokenizer.tokenize(src_text)),
+            " ".join(trg_tokenizer.tokenize(trg_text)),
+        )
 
     num_test_dataset = round(len(all_text_pair) * test_size)
     num_valid_dataset = round(len(all_text_pair) * valid_size)
@@ -148,10 +160,24 @@ if __name__ == "__main__":
     ]
     test_text_pairs = all_text_pair[num_train_dataset + num_valid_dataset:]
 
+    # Build vocab
+    src_tokenizer.build_vocab(
+        [src for src, _ in training_text_pairs], min_freq=args.min_freq,
+    )
+    trg_tokenizer.build_vocab(
+        [trg for _, trg in training_text_pairs], min_freq=args.min_freq,
+    )
+
     save_dir = Path(args.save_dir)
     save_pair_to_tsv_file(training_text_pairs, save_dir / args.train_file_name)
     save_pair_to_tsv_file(test_text_pairs, save_dir / args.test_file_name)
     save_pair_to_tsv_file(valid_text_pairs, save_dir / args.valid_file_name)
+
+    src_tokenizer.save_vocab(str(save_dir / "src_vocab.json"))
+    trg_tokenizer.save_vocab(str(save_dir / "trg_vocab.json"))
+
+    print(f"num src vocab size: {len(src_tokenizer)}")
+    print(f"num trg vocab size: {len(trg_tokenizer)}")
 
     print(
         f"num training: {num_train_dataset}, num test: {num_test_dataset}, "
