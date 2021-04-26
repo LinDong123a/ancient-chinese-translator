@@ -1,6 +1,7 @@
 import random
 from typing import Tuple
 
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -8,17 +9,15 @@ import torch.nn.functional as F
 from data.vocab import Vocab
 
 
-class GRU_Translator(nn.Module):
+class GRU_Translator(pl.LightningModule):
     def __init__(
         self,
         embedding_dim: int,
         hidden_dim: int,
         src_vocab: Vocab,
         trg_vocab: Vocab,
-        device: torch.device,
     ) -> None:
         super().__init__()
-        self.device = device
 
         self.src_vocab = src_vocab
         self.src_vocab_size = len(src_vocab)
@@ -58,7 +57,7 @@ class GRU_Translator(nn.Module):
         src_token_embed = self.src_embedding(src_token_ids)
 
         packed_src_token_ids = nn.utils.rnn.pack_padded_sequence(
-            src_token_embed, src_sizes, batch_first=True, enforce_sorted=False,
+            src_token_embed, src_sizes.cpu(), batch_first=True, enforce_sorted=False,
         )
 
         packed_out, hn = self.encoder(packed_src_token_ids)
@@ -142,16 +141,12 @@ class GRU_Translator(nn.Module):
         decoder_outputs = torch.zeros(
             batch_size, max_sequence_len+1, self.trg_vocab_size, device=self.device,
         )
-        decoder_outputs[:, 0, self.trg_vocab.unk_idx] = 1  # 初始化原始输入为SOS
-        for step in range(1, max_sequence_len+1):
+        decoder_outputs[:, 0, self.trg_vocab.sos_idx] = 1  # 初始化原始输入为SOS
+        for step in range(1, max_sequence_len + 1):
             if random.random() < teacher_forcing and trg_token_ids:
-                last_decode_output = torch.LongTensor(
-                    [trg_token_ids[step - 1]],
-                ).repeat(batch_size)
+                last_decode_output = trg_token_ids[:, step - 1]
             else:
-                last_decode_output = torch.LongTensor(
-                    decoder_outputs[:, step-1].max(dim=-1).indices,
-                )
+                last_decode_output = decoder_outputs[:, step-1].max(dim=-1).indices
 
             decoder_out, d_hn = self.decode(
                 last_decode_output.unsqueeze(1), d_hn, encoder_outs,

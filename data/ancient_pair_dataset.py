@@ -77,10 +77,8 @@ class AncientPairDataset(Dataset):
         src_token_ids = [self.src_vocab.stoi(t) for t in self.src_tokens_list[idx]]
         trg_token_ids = [self.trg_vocab.stoi(t) for t in self.trg_tokens_list[idx]]
 
-        src_token_ids = src_token_ids[:self.max_seq_len - 1]
+        # 添加eos token
         trg_token_ids = trg_token_ids[:self.max_seq_len - 1]
-
-        src_token_ids.append(self.src_vocab.eos_idx)
         trg_token_ids.append(self.trg_vocab.eos_idx)
 
         src_token_ids = src_token_ids + [

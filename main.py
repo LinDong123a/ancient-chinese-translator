@@ -20,7 +20,7 @@ if __name__ == "__main__":
     print(len(data_module.test_dataset))
     print(len(data_module.valid_dataset))
 
-    trainer = pl.Trainer(logger=neptune_logger)
+    trainer = pl.Trainer(logger=neptune_logger, gpus=1, precision=16, log_every_n_steps=1)
     trainer.fit(model, datamodule=data_module)
 
     trainer.test(model, datamodule=data_module)
