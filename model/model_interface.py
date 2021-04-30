@@ -45,31 +45,28 @@ class ModelInterface(pl.LightningModule):
 
         self.log("valid/loss", loss, on_epoch=True, on_step=True)
 
-        return batch, predicts
+        return batch["src"], predicts
 
     def validation_epoch_end(self, outputs: List[Tuple[torch.Tensor, torch.Tensor]]):
         output = random.choice(outputs)
 
         for i in range(output.size(0)):
-            inputs, probs = output[0][i], output[1][i]
-
-            input_token_ids = inputs.max(dim=-1).indices
-            token_ids = probs.max(dim=-1).indices
+            input_token_ids, probs = output[0][i].tolist(), output[1][i]
+            token_ids = probs.max(dim=-1).indices.tolist()
 
             try:
                 print(
                     "".join([
-                        self.src_vocab.stoi(_id)
+                        self.src_vocab.itos(_id)
                         for _id in input_token_ids[
-                            :(input_token_ids == self.src_vocab.pad_idx).
-                            nonzero(as_tuple=True)[0][0]
+                            :input_token_ids.index(self.src_vocab.pad_idx)
                         ]
                     ]),
                 )
-            except IndexError:
+            except ValueError:
                 print(
                     "".join([
-                        self.src_vocab.stoi(_id) for _id in input_token_ids
+                        self.src_vocab.itos(_id) for _id in input_token_ids
                     ]),
                 )
 
@@ -78,12 +75,11 @@ class ModelInterface(pl.LightningModule):
                     "".join([
                         self.trg_vocab.itos(_id)
                         for _id in token_ids[
-                            :(token_ids == self.trg_vocab.eos_idx)
-                            .nonzero(as_tuple=True)[0][0]
+                            :token_ids.index(self.trg_vocab.pad_idx)
                         ]
                     ]),
                 )
-            except IndexError:
+            except ValueError:
                 print(
                     "".join([self.trg_vocab.itos(_id) for _id in token_ids]),
                 )
