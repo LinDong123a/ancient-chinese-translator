@@ -72,6 +72,7 @@ class GRU_Translator(pl.LightningModule):
         token_id: torch.Tensor,
         hn: torch.Tensor,
         encoder_outputs: torch.Tensor,
+        encode_mask: torch.Tensor,
     ) -> torch.Tensor:
         """完成一个时间步的解码
 
@@ -80,6 +81,8 @@ class GRU_Translator(pl.LightningModule):
             hn (torch.Tensor): GRU的中间状态，[1, bach_size, 2 * hidden dim]
             encoder_outputs (torch.Tensor): 输入层的编码信息，
                 [batch size, max sequence len, 2 * hidden dim]
+            encode_mask (torch.Tensor): 输入的长度mask，对于padding元素不进行
+                attention, [batch size, max sequence len]
 
         Returns:
             torch.Tensor: [batch size, 1, vocab size]
@@ -87,7 +90,7 @@ class GRU_Translator(pl.LightningModule):
         # [batch size, 1, embedding dim]
         deocder_input = self.trg_embedding(token_id)
 
-        # [batch size, max seq len, 1]
+        # [batch size, max seq len]
         atten_score = self.attn_a(
             torch.cat(
                 [
@@ -96,10 +99,12 @@ class GRU_Translator(pl.LightningModule):
                 ],
                 dim=-1,
             ),
-        )
+        ).squeeze(dim=2)
+
+        atten_score = torch.softmax(atten_score.masked_fill(encode_mask, -1e4), dim=-1)
 
         # [batch size, 2 * hidden dim]
-        atten_embed = torch.matmul(atten_score.transpose(1, 2), encoder_outputs).squeeze(1)
+        atten_embed = torch.matmul(atten_score.unsqueeze(1), encoder_outputs).squeeze(1)
 
         output, d_hn = self.decoder(
             torch.cat([deocder_input, atten_embed.unsqueeze(1)], dim=-1),
@@ -114,7 +119,7 @@ class GRU_Translator(pl.LightningModule):
         src_sizes: torch.Tensor,
         max_sequence_len: int = None,
         trg_token_ids: torch.Tensor = None,
-        teacher_forcing: float = 0,
+        teacher_forcing: float = 1,
     ) -> torch.Tensor:
         """
         Args:
@@ -130,12 +135,16 @@ class GRU_Translator(pl.LightningModule):
         if max_sequence_len is None and trg_token_ids is None:
             raise ValueError("one of max_sequence_len or trg_token_ids must be specifed")
 
+        batch_size = src_token_ids.size(0)
+
         encoder_outs, hn = self.encode(src_token_ids, src_sizes)
+
+        src_max_sequence_len = encoder_outs.size(1)
+        encode_len_arange = torch.arange(0, src_max_sequence_len, device=self.device).unsqueeze(0).repeat(batch_size, 1)
+        encode_mask = (encode_len_arange >= src_sizes.unsqueeze(1).repeat(1, src_max_sequence_len))
 
         if trg_token_ids is not None:
             max_sequence_len = trg_token_ids.size(1)
-
-        batch_size = src_token_ids.size(0)
 
         d_hn = hn
         decoder_outputs = torch.zeros(
@@ -143,13 +152,13 @@ class GRU_Translator(pl.LightningModule):
         )
         decoder_outputs[:, 0, self.trg_vocab.sos_idx] = 1  # 初始化原始输入为SOS
         for step in range(1, max_sequence_len + 1):
-            if random.random() < teacher_forcing and trg_token_ids:
-                last_decode_output = trg_token_ids[:, step - 1]
+            if step != 1 and random.random() < teacher_forcing and trg_token_ids is not None:
+                last_decode_output = trg_token_ids[:, step - 2]
             else:
                 last_decode_output = decoder_outputs[:, step-1].max(dim=-1).indices
 
             decoder_out, d_hn = self.decode(
-                last_decode_output.unsqueeze(1), d_hn, encoder_outs,
+                last_decode_output.unsqueeze(1), d_hn, encoder_outs, encode_mask,
             )
 
             # [batch size, 1, embedding dim]

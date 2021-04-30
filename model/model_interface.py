@@ -43,16 +43,20 @@ class ModelInterface(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         loss, predicts = self.forward(batch, batch_idx)
 
-        self.log("valid/loss", loss, on_epoch=True, on_step=True)
+        self.log("valid/loss", loss, on_step=True)
 
-        return batch["src"], predicts
+        return loss
 
-    def validation_epoch_end(self, outputs: List[Tuple[torch.Tensor, torch.Tensor]]):
+    def _validation_epoch_end(self, outputs: List[Tuple[torch.Tensor, torch.Tensor]]):
         output = random.choice(outputs)
 
-        for i in range(output.size(0)):
+        print(output[1].shape)
+        for i in range(output[1].size(0)):
             input_token_ids, probs = output[0][i].tolist(), output[1][i]
             token_ids = probs.max(dim=-1).indices.tolist()
+
+            print(input_token_ids)
+            print(token_ids)
 
             try:
                 print(
@@ -90,4 +94,4 @@ class ModelInterface(pl.LightningModule):
         self.log("test/loss", loss, on_epoch=True, on_step=True)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.model.parameters(), lr=0.02)
+        return torch.optim.Adam(self.model.parameters(), lr=0.001)
