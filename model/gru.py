@@ -1,4 +1,5 @@
 import random
+from argparse import ArgumentParser
 from typing import Tuple
 
 import pytorch_lightning as pl
@@ -36,6 +37,16 @@ class GRU_Translator(pl.LightningModule):
         )
         self.attn_a = nn.Linear(4 * hidden_dim, 1)
         self.out = nn.Linear(2 * hidden_dim, self.trg_vocab_size)
+
+    @classmethod
+    def add_model_args(cls, parent_parser: ArgumentParser):
+        parser = parent_parser.add_argument_group("gru")
+        parser.add_argument("--embedding_dim", type=int, default=128)
+        parser.add_argument("--hidden_dim", type=int, default=256)
+
+        cls.parser = parser
+
+        return parent_parser
 
     def encode(
         self,
@@ -140,8 +151,12 @@ class GRU_Translator(pl.LightningModule):
         encoder_outs, hn = self.encode(src_token_ids, src_sizes)
 
         src_max_sequence_len = encoder_outs.size(1)
-        encode_len_arange = torch.arange(0, src_max_sequence_len, device=self.device).unsqueeze(0).repeat(batch_size, 1)
-        encode_mask = (encode_len_arange >= src_sizes.unsqueeze(1).repeat(1, src_max_sequence_len))
+        encode_len_arange = torch.arange(
+            0, src_max_sequence_len, device=self.device,
+        ).unsqueeze(0).repeat(batch_size, 1)
+        encode_mask = (
+            encode_len_arange >= src_sizes.unsqueeze(1).repeat(1, src_max_sequence_len)
+        )
 
         if trg_token_ids is not None:
             max_sequence_len = trg_token_ids.size(1)

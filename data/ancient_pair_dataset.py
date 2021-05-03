@@ -1,3 +1,5 @@
+import argparse
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -6,6 +8,8 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 
 from data.vocab import Vocab
+
+logger = logging.getLogger(__name__)
 
 
 class AncientPairDataModule(pl.LightningDataModule):
@@ -19,6 +23,17 @@ class AncientPairDataModule(pl.LightningDataModule):
             raise ValueError("Directory or file doesn't exist")
         if not self.data_dir.is_dir():
             raise ValueError("`data_dir` must be a path to directory")
+
+    @classmethod
+    def add_data_args(cls, parent_parser: argparse.ArgumentParser):
+        parser = parent_parser.add_argument_group("data")
+
+        parser.add_argument("--data_dir", type=str, default="./data", help="数据存储路径")
+        parser.add_argument("--batch_size", type=int, default=128, help="一个batch的大小")
+
+        cls.parser = parser
+
+        return parent_parser
 
     def prepare_data(self):
         """数据已提前准备完成"""
@@ -40,6 +55,13 @@ class AncientPairDataModule(pl.LightningDataModule):
         )
         self.test_dataset = AncientPairDataset(
             str(self.data_dir / "test.tsv"), 128, self.src_vocab, self.trg_vocab,
+        )
+
+        logger.info(
+            f"数据集信息:\n\t"
+            f"训练集: {len(self.train_dataset)}, "
+            f"验证集: {len(self.valid_dataset)}, "
+            f"测试集: {len(self.test_dataset)}",
         )
 
     def train_dataloader(self):

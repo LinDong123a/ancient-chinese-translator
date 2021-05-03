@@ -1,4 +1,5 @@
 import random
+from argparse import ArgumentParser
 from typing import List, Tuple
 
 import pytorch_lightning as pl
@@ -9,19 +10,50 @@ from data.vocab import Vocab
 
 
 class ModelInterface(pl.LightningModule):
-    def __init__(self, model_name: str, src_vocab: Vocab, trg_vocab: Vocab):
+    def __init__(
+        self,
+        src_vocab: Vocab,
+        trg_vocab: Vocab,
+        lr: float,
+        num_epoch: int,
+        steps_per_epoch: int,
+        model_config: dict,
+    ):
         super().__init__()
+
+        self.num_epoch = num_epoch
+        self.steps_per_epoch = steps_per_epoch
+        self.lr = lr
 
         self.src_vocab = src_vocab
         self.trg_vocab = trg_vocab
 
-        if model_name == "GRU":
-            from .gru import GRU_Translator
-            self.model = GRU_Translator(128, 256, src_vocab, trg_vocab)
-        else:
-            raise ValueError(f"Unrecognized model: {model_name}")
+        self.model = self.model_cls(
+            src_vocab=src_vocab, trg_vocab=trg_vocab, **model_config,
+        )
 
         self.loss = nn.CrossEntropyLoss(ignore_index=trg_vocab.pad_idx)
+
+    @classmethod
+    def add_trainer_args(cls, parent_parser: ArgumentParser):
+        parent_parser.add_argument("--model", type=str, default="GRU", help="模型类型")
+        known_args, _ = parent_parser.parse_known_args()
+
+        cls.model_name = known_args
+        if known_args.model == "GRU":
+            from .gru import GRU_Translator
+            cls.model_cls = GRU_Translator
+            GRU_Translator.add_model_args(parent_parser)
+        else:
+            raise ValueError(f"Unrecognized model: {known_args.model}")
+
+        parser = parent_parser.add_argument_group("trainer")
+
+        parser.add_argument("--lr", type=float, default=0.01, help="模型学习率")
+
+        cls.parser = parser
+
+        return parent_parser
 
     def forward(self, batch, batch_idx):
         decoder_outputs = self.model(
@@ -41,7 +73,7 @@ class ModelInterface(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss, predicts = self.forward(batch, batch_idx)
+        loss, _ = self.forward(batch, batch_idx)
 
         self.log("valid/loss", loss, on_step=True)
 
@@ -94,4 +126,15 @@ class ModelInterface(pl.LightningModule):
         self.log("test/loss", loss, on_epoch=True, on_step=True)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.model.parameters(), lr=0.001)
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr)
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(
+            optimizer,
+            max_lr=self.lr,
+            epochs=self.num_epoch,
+            steps_per_epoch=self.steps_per_epoch,
+        )
+
+        return [optimizer], [{
+            "scheduler": scheduler,
+            "interval": "step",
+        }]
