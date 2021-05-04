@@ -78,7 +78,7 @@ class ModelInterface(pl.LightningModule):
                 if tid == self.trg_vocab.eos_idx:
                     break
 
-                token_list.append(self.trg_vocab.itos(tid))
+                token_list.append(self.trg_vocab.itos(tid.item()))
 
             sent_list.append("".join(token_list))
 
