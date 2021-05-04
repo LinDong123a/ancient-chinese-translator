@@ -32,11 +32,14 @@ class GRU_Translator(pl.LightningModule):
         )
 
         self.trg_embedding = nn.Embedding(self.trg_vocab_size, embedding_dim)
-        self.decoder = nn.GRU(
-            2 * hidden_dim + embedding_dim, 2 * hidden_dim, batch_first=True,
-        )
         self.attn_a = nn.Linear(4 * hidden_dim, 1)
+        self.attn_comb = nn.Linear(2 * hidden_dim + embedding_dim, embedding_dim)
+        self.decoder = nn.GRU(
+            embedding_dim, 2 * hidden_dim, batch_first=True,
+        )
         self.out = nn.Linear(2 * hidden_dim, self.trg_vocab_size)
+
+        self.save_hyperparameters("embedding_dim", "hidden_dim")
 
     @classmethod
     def add_model_args(cls, parent_parser: ArgumentParser):
@@ -118,7 +121,7 @@ class GRU_Translator(pl.LightningModule):
         atten_embed = torch.matmul(atten_score.unsqueeze(1), encoder_outputs).squeeze(1)
 
         output, d_hn = self.decoder(
-            torch.cat([deocder_input, atten_embed.unsqueeze(1)], dim=-1),
+            self.attn_comb(torch.cat([deocder_input, atten_embed.unsqueeze(1)], dim=-1)),
             hn,
         )
 

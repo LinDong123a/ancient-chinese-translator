@@ -2,18 +2,14 @@ import argparse
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor
-from pytorch_lightning.loggers.neptune import NeptuneLogger
 
 from data import AncientPairDataModule
 from model import ModelInterface
 from utils import get_args_by_parser
 
-neptune_logger = NeptuneLogger(
-    project_name="lds/ancient-chinese-translator",
-)
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--with_neptune", action="store_true")
 
     parser = pl.Trainer.add_argparse_args(parser)
     parser = AncientPairDataModule.add_data_args(parser)
@@ -22,7 +18,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(parents=[parser])
     args = parser.parse_args()
 
-    neptune_logger.log_hyperparams(args)
+    if args.with_neptune:
+        from pytorch_lightning.loggers.neptune import NeptuneLogger
+        logger = NeptuneLogger(
+            project_name="lds/ancient-chinese-translator",
+        )
+        logger.log_hyperparams(args)
+    else:
+        from pytorch_lightning.loggers.csv_logs import CSVLogger
+        logger = CSVLogger("logs", name="ancient-chinese")
 
     # 加载训练数据
     data_module = AncientPairDataModule(
@@ -45,7 +49,7 @@ if __name__ == "__main__":
     lr_monitor = LearningRateMonitor(logging_interval='step')
 
     trainer = pl.Trainer.from_argparse_args(
-        args, logger=neptune_logger, callbacks=[lr_monitor],
+        args, logger=logger, callbacks=[lr_monitor],
     )
     trainer.fit(model, datamodule=data_module)
     trainer.test(model, datamodule=data_module)

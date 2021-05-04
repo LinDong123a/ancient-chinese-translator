@@ -34,6 +34,8 @@ class ModelInterface(pl.LightningModule):
 
         self.loss = nn.CrossEntropyLoss(ignore_index=trg_vocab.pad_idx)
 
+        self.save_hyperparameters("num_epoch", "steps_per_epoch", "lr", "model_config")
+
     @classmethod
     def add_trainer_args(cls, parent_parser: ArgumentParser):
         parent_parser.add_argument("--model", type=str, default="GRU", help="模型类型")
@@ -72,7 +74,7 @@ class ModelInterface(pl.LightningModule):
 
         sent_list = []
         for i in range(decoder_output.size(0)):
-            token_ids = decoder_output[i].max(dim=-1).indices
+            token_ids = decoder_output[i].max(dim=-1).indices[1:]  # strip sos token
             token_list = []
             for tid in token_ids:
                 if tid == self.trg_vocab.eos_idx:

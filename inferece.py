@@ -22,12 +22,21 @@ if __name__ == "__main__":
     trg_vocab = Vocab()
     trg_vocab.load(args.trg_vocab_path)
 
-    model = ModelInterface.load_from_checkpoint(args.checkpoint_path, src_vocab=src_tokenizer.vocab, trg_vocab=trg_vocab, lr=0.01, num_epoch=100, steps_per_epoch=20, model_config={"embedding_dim": args.embedding_dim, "hidden_dim": args.hidden_dim})
+    model = ModelInterface.load_from_checkpoint(
+        args.checkpoint_path,
+        src_vocab=src_tokenizer.vocab,
+        trg_vocab=trg_vocab,
+        lr=0.01, num_epoch=100, steps_per_epoch=20,
+        model_config={"embedding_dim": args.embedding_dim, "hidden_dim": args.hidden_dim},
+    )
 
     while True:
         sent = input("原始白话文:")
 
         input_token_list = src_tokenizer.tokenize(sent, map_to_id=True)
-        res_sent = model.inference(torch.LongTensor([input_token_list]), torch.LongTensor([len(input_token_list)]))[0]
+        res_sent = model.inference(
+            torch.LongTensor([input_token_list]),
+            torch.LongTensor([len(input_token_list)]),
+        )[0]
 
         print(res_sent)
