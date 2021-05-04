@@ -5,9 +5,10 @@ from typing import Tuple
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from data.vocab import Vocab
+
+# import torch.nn.functional as F
 
 
 class GRU_Translator(pl.LightningModule):
@@ -33,9 +34,8 @@ class GRU_Translator(pl.LightningModule):
 
         self.trg_embedding = nn.Embedding(self.trg_vocab_size, embedding_dim)
         self.attn_a = nn.Linear(4 * hidden_dim, 1)
-        self.attn_comb = nn.Linear(2 * hidden_dim + embedding_dim, embedding_dim)
         self.decoder = nn.GRU(
-            embedding_dim, 2 * hidden_dim, batch_first=True,
+            2 * hidden_dim + embedding_dim, 2 * hidden_dim, batch_first=True,
         )
         self.out = nn.Linear(2 * hidden_dim, self.trg_vocab_size)
 
@@ -79,7 +79,7 @@ class GRU_Translator(pl.LightningModule):
         out, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True)
 
         # [batch size, 2 * hidden dim]
-        return out, torch.cat([hn[0], hn[1]], dim=1).unsqueeze(0)
+        return out, torch.tanh(torch.cat([hn[-2], hn[-1]], dim=1).unsqueeze(0))
 
     def decode(
         self,
@@ -121,11 +121,11 @@ class GRU_Translator(pl.LightningModule):
         atten_embed = torch.matmul(atten_score.unsqueeze(1), encoder_outputs).squeeze(1)
 
         output, d_hn = self.decoder(
-            self.attn_comb(torch.cat([deocder_input, atten_embed.unsqueeze(1)], dim=-1)),
+            torch.cat([deocder_input, atten_embed.unsqueeze(1)], dim=-1),
             hn,
         )
 
-        return self.out(F.relu(output.squeeze(dim=1))), d_hn
+        return self.out(torch.tanh(output.squeeze(dim=1))), d_hn
 
     def forward(
         self,
@@ -143,6 +143,7 @@ class GRU_Translator(pl.LightningModule):
             trg_token_ids (Tensor, optional): 目标文本，[batch size, max sequence len],
                 当需要teacher forcing时才需要添加，默认为None
             teacher_forcing (float): teacher forcing的概率
+
         Returns:
             torch.Tensor, [batch size, max sequence len, label size]
         """
