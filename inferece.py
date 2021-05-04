@@ -1,0 +1,33 @@
+import argparse
+
+import torch
+
+from data.tokenization import CharTokenizer
+from data.vocab import Vocab
+from model import ModelInterface
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--checkpoint_path", type=str, required=True)
+    parser.add_argument("--src_vocab_path", type=str, required=True, help="白话文词表路径")
+    parser.add_argument("--trg_vocab_path", type=str, required=True, help="文言文词表路径")
+
+    parser = ModelInterface.add_trainer_args(parser)
+
+    args = parser.parse_args()
+
+    model = ModelInterface.load_from_checkpoint(args.checkpoint_path)
+
+    src_tokenizer = CharTokenizer()
+    src_tokenizer.load_vocab(args.src_vocab_path)
+
+    trg_vocab = Vocab()
+    trg_vocab.load(args.trg_vocab_path)
+
+    while True:
+        sent = input("原始白话文:")
+
+        input_token_list = src_tokenizer.tokenize(sent, map_to_id=True)
+        res_sent = model.inference(torch.LongTensor([input_token_list]))[0]
+
+        print(res_sent)

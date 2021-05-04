@@ -65,6 +65,25 @@ class ModelInterface(pl.LightningModule):
 
         return self.loss(decoder_outputs, gt_trg), decoder_outputs
 
+    def inference(self, src: torch.Tensor, src_size: torch.Tensor) -> List[str]:
+        decoder_output = self.model(
+            src.to(self.device), src_size.to(self.device), max_sequence_len=128,
+        )
+
+        sent_list = []
+        for i in range(decoder_output.size(0)):
+            token_ids = decoder_output[i].max(dim=-1).indices
+            token_list = []
+            for tid in token_ids:
+                if tid == self.trg_vocab.eos_idx:
+                    break
+
+                token_list.append(self.trg_vocab.itos(tid))
+
+            sent_list.append("".join(token_list))
+
+        return sent_list
+
     def training_step(self, batch, batch_idx):
         loss, _ = self.forward(batch, batch_idx)
 
