@@ -1,0 +1,1 @@
+python inferece.py --checkpoint_path models/Untitled/AN-145/checkpoints/epoch=76-step=42950.ckpt --src_vocab_path /home/featurize/data/dataset/src_vocab.json --trg_vocab_path /home/featurize/data/dataset/trg_vocab.json --embedding_dim 128 --hidden_dim 256
