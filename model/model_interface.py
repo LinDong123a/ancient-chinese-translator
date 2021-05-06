@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from typing import List
 
 import pytorch_lightning as pl
 import torch
@@ -118,6 +119,7 @@ class ModelInterface(pl.LightningModule):
         optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr)
         scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer,
+            pct_start=0.01,
             max_lr=self.lr,
             epochs=self.num_epoch,
             steps_per_epoch=self.steps_per_epoch,

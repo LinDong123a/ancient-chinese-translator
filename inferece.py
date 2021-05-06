@@ -27,9 +27,10 @@ if __name__ == "__main__":
         src_vocab=src_tokenizer.vocab,
         trg_vocab=trg_vocab,
         lr=0.01, num_epoch=100, steps_per_epoch=20,
-        model_config={"embedding_dim": args.embedding_dim, "hidden_dim": args.hidden_dim},
+        model_config={"embedding_dim": args.embedding_dim, "enc_hidden_dim": args.enc_hidden_dim, "dec_hidden_dim": args.dec_hidden_dim, "dropout": 0},
     )
 
+    model = model.eval()
     while True:
         sent = input("原始白话文:")
 
@@ -40,3 +41,4 @@ if __name__ == "__main__":
         )[0]
 
         print(res_sent)
+

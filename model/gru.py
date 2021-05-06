@@ -96,7 +96,7 @@ class GRU_Translator(pl.LightningModule):
         decoder_outputs = torch.zeros(
             batch_size, max_sequence_len, self.trg_vocab_size, device=self.device,
         )
-        decoder_input = torch.LongTensor([self.trg_sos_idx]).repeat(batch_size)
+        decoder_input = torch.LongTensor([self.trg_sos_idx]).to(self.device).repeat(batch_size)
         for step in range(max_sequence_len):
             decoder_out, d_hn = self.decoder(
                 decoder_input.unsqueeze(1), d_hn, encoder_outs, encode_mask,
