@@ -32,6 +32,10 @@ class BaseTokenizer(object):
 
 
 class CharTokenizer(BaseTokenizer):
-    def tokenize(self, sent: str) -> List[str]:
-        sent = sent.replace(" ", "")
-        return list(sent)
+    def tokenize(self, sent: str, map_to_id: bool = False) -> List[str]:
+        token_list = list(sent.replace(" ", ""))
+
+        if map_to_id:
+            return [self.vocab.stoi(s) for s in token_list]
+        else:
+            return token_list

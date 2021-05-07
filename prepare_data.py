@@ -143,7 +143,7 @@ if __name__ == "__main__":
     if test_size + valid_size >= 1:
         raise ValueError("Sum of test size and valid size must be less than 1")
 
-    all_text_pair = all_text_pair[:120000]
+    # all_text_pair = all_text_pair[:120000]
 
     # tokenize text
     for idx, (src_text, trg_text) in enumerate(all_text_pair):
