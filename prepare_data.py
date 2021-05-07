@@ -15,6 +15,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_path", type=str, help="原始数据文件夹保存路径")
     parser.add_argument("--num_worker", type=int, default=None, help="处理数据的线程数")
+    parser.add_argument("--dataset_size", type=int, default=-1, help="数据集的大小")
     parser.add_argument("--test_size", type=float, default=0.1, help="测试集占比")
     parser.add_argument("--valid_size", type=float, default=0.1, help="验证集占比")
     parser.add_argument("--save_dir", type=str, default="data", help="要保存处理后的文件路径")
@@ -138,6 +139,9 @@ if __name__ == "__main__":
 
     random.seed(args.seed)
     random.shuffle(all_text_pair)
+
+    if args.dataset_size > 0:
+        all_text_pair = all_text_pair[:args.dataset_size]
 
     test_size, valid_size = args.test_size, args.valid_size
     if test_size + valid_size >= 1:
