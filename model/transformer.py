@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 from typing import Tuple
 
 import pytorch_lightning as pl
@@ -17,6 +18,7 @@ class Transformer(pl.LightningModule):
         n_enc_layers: int,
         n_dec_layers: int,
         dropout: float = 0.1,
+        **kwargs,
     ):
         super().__init__()
 
@@ -29,6 +31,20 @@ class Transformer(pl.LightningModule):
         )
 
         self.proj_to_vocab = nn.Linear(d_model, trg_vocab_size)
+
+    @classmethod
+    def add_model_args(cls, parent_parser: ArgumentParser):
+        parser = parent_parser.add_argument_group("gru")
+        parser.add_argument("--d_model", type=int, default=256)
+        parser.add_argument("--hidden_dim", type=int, default=256)
+        parser.add_argument("--n_head", type=int, default=4)
+        parser.add_argument("--n_enc_layers", type=int, default=6)
+        parser.add_argument("--n_dec_layers", type=int, default=6)
+        parser.add_argument("--dropout", type=float, default=0.1)
+
+        cls.parser = parser
+
+        return parent_parser
 
     def build_pad_mask(
         self,
@@ -274,10 +290,10 @@ class TransformerDecoderLayer(pl.LightningModule):
         self.head_dim = hidden_dim // n_head
 
         self.self_attn = MultiHeadAttention(
-            d_model, self.head_dim, self.head_dim, dropout,
+            d_model, self.head_dim, self.head_dim, n_head, dropout,
         )
         self.enc_dec_attn = MultiHeadAttention(
-            d_model, self.head_dim, self.head_dim, dropout,
+            d_model, self.head_dim, self.head_dim, n_head, dropout,
         )
         self.ffn = PositionalFeedForward(d_model, 4 * d_model, dropout)
 
@@ -369,7 +385,7 @@ class MultiHeadAttention(pl.LightningModule):
         )
 
         # [batch size, len_q, n_head * d_v]
-        output = output.transpose(1, 2).view(batch_size, len_q, -1)
+        output = output.transpose(1, 2).reshape(batch_size, len_q, -1)
         output = self.layer_norm(output + residual)
 
         return output
@@ -379,7 +395,7 @@ class ScaledDotAttention(pl.LightningModule):
     def __init__(self, d_model: int):
         super().__init__()
 
-        self.scale = torch.sqrt(d_model)
+        self.scale = d_model ** 0.5
 
     def forward(
         self,
