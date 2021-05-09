@@ -24,6 +24,8 @@ class Transformer(pl.LightningModule):
         super().__init__()
 
         self.trg_sos_idx = trg_sos_idx
+        self.src_vocab_size = src_vocab_size
+        self.trg_vocab_size = trg_vocab_size
 
         self.encoder = TransformerEncoder(
             src_vocab_size, d_model, hidden_dim, n_head, n_enc_layers, dropout,
@@ -171,12 +173,38 @@ class Transformer(pl.LightningModule):
         self,
         src_token_ids: torch.Tensor,
         src_sizes: torch.Tensor,
+        max_seq_len: int = 128,
     ) -> torch.Tensor:
         batch_size = src_token_ids.size(0)
 
-        _ = torch.LongTensor(
+        trg_token_ids = torch.LongTensor(
             [[self.trg_sos_idx]],
         ).repeat(batch_size, 1).to(self.device)
+
+        enc_attn_mask, enc_dec_attn_mask, dec_attn_mask = (
+            self.build_src_and_trg_mask(
+                src_token_ids.size(1), src_sizes, trg_token_ids.size(1), 1,
+            )
+        )
+
+        enc_outputs = self.encoder(src_token_ids, mask=enc_attn_mask)
+        dec_outputs = torch.zeros(
+            batch_size, max_seq_len, self.trg_vocab_size, device=self.device,
+        )
+
+        for step in range(max_seq_len):
+            dec_output = self.decoder(
+                trg_token_ids,
+                enc_outputs,
+                dec_mask=dec_attn_mask,
+                enc_dec_mask=enc_dec_attn_mask,
+            )
+
+            dec_outputs[:, step] = self.proj_to_vocab(dec_output).squeeze(1)
+
+            trg_token_ids = dec_outputs[:, step].max(dim=-1).unsqueeze(1)
+
+        return dec_outputs
 
 
 class PositionalEncoding(pl.LightningModule):

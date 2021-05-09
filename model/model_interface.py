@@ -110,10 +110,9 @@ class ModelInterface(pl.LightningModule):
             # strip sos token
             decoder_output = decoder_output[:, 1:]
         elif self.model_name == "transformer":
-            self.model(src.to(self.device), src_size.to(self.device))
-            decoder_output = torch.zeros(src.size(0), max_seq_len, len(self.trg_vocab))
-            for step in range(1):
-                pass
+            decoder_output = self.model.inference(
+                src.to(self.device), src_size.to(self.device), max_seq_len,
+            )
         else:
             raise ValueError(f"Unsupported model: {self.model_name}")
 
