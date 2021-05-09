@@ -12,6 +12,7 @@ class Transformer(pl.LightningModule):
         self,
         src_vocab_size: int,
         trg_vocab_size: int,
+        trg_sos_idx: int,
         d_model: int,
         hidden_dim: int,
         n_head: int,
@@ -21,6 +22,8 @@ class Transformer(pl.LightningModule):
         **kwargs,
     ):
         super().__init__()
+
+        self.trg_sos_idx = trg_sos_idx
 
         self.encoder = TransformerEncoder(
             src_vocab_size, d_model, hidden_dim, n_head, n_enc_layers, dropout,
@@ -78,9 +81,49 @@ class Transformer(pl.LightningModule):
         Returns:
             torch.BoolTensor: [len_seq, len_seq]
         """
-        return torch.triu(
-            torch.ones(len_seq, len_seq, device=self.device), diagonal=0,
+        return (
+            1 - torch.triu(
+                torch.ones(len_seq, len_seq, device=self.device), diagonal=0,
+            )
         ).bool()
+
+    def build_src_and_trg_mask(
+        self,
+        len_src: int,
+        src_sizes: torch.Tensor,
+        len_trg: int,
+        trg_sizes: torch.Tensor,
+    ) -> Tuple[torch.BoolTensor, torch.BoolTensor, torch.BoolTensor]:
+        """创建encoder和decoder过程中需要用到的mask矩阵
+
+        Args:
+            len_src (int): 输入的长度
+            src_sizes (torch.Tensor): [batch size]
+            len_trg (int): 输出的长度
+            trg_sizes (torch.Tensor): [batch size]
+
+        Returns:
+            Tuple[torch.BoolTensor, , torch.BoolTensor]:
+            torch.BoolTensor: [batch_size, len_src, len_src], 输入的attn矩阵
+            torch.BoolTensor: [batch size, len_trg, len_src], 输出对输出的mask矩阵
+            torch.BoolTensor: [batch size, len_trg, len_trg], 输出的attn矩阵
+        """
+        # [batch size, max enc len]
+        enc_mask = self.build_pad_mask(src_sizes, len_src)
+        # [batch size, max dec len]
+        dec_mask = self.build_pad_mask(trg_sizes, len_trg)
+
+        # [batch size, max enc len, max enc len]
+        enc_attn_mask = enc_mask.unsqueeze(2) * enc_mask.unsqueeze(1)
+        # [batch size, max dec len, max enc len]
+        enc_dec_attn_mask = dec_mask.unsqueeze(2) * enc_mask.unsqueeze(1)
+        # [batch size, max dec len, max dec len]
+        dec_attn_mask = (
+            dec_mask.unsqueeze(2) * dec_mask.unsqueeze(1)
+            & self.get_subseq_mask(len_trg).unsqueeze(0)
+        )
+
+        return enc_attn_mask, enc_dec_attn_mask, dec_attn_mask
 
     def forward(
         self,
@@ -123,6 +166,17 @@ class Transformer(pl.LightningModule):
         )
 
         return self.proj_to_vocab(dec_outputs)
+
+    def inference(
+        self,
+        src_token_ids: torch.Tensor,
+        src_sizes: torch.Tensor,
+    ) -> torch.Tensor:
+        batch_size = src_token_ids.size(0)
+
+        _ = torch.LongTensor(
+            [[self.trg_sos_idx]],
+        ).repeat(batch_size, 1).to(self.device)
 
 
 class PositionalEncoding(pl.LightningModule):
@@ -422,7 +476,7 @@ class ScaledDotAttention(pl.LightningModule):
         attn = torch.matmul(qs, ks.transpose(-2, -1)) / self.scale
 
         if mask is not None:
-            attn = attn.masked_fill(mask, -1e9)
+            attn = attn.masked_fill(mask == 0, -1e4)
 
         attn = torch.softmax(attn, dim=-1)
 

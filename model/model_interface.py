@@ -79,7 +79,7 @@ class ModelInterface(pl.LightningModule):
         elif self.model_name == "transformer":
             trg_sos_tokens = torch.LongTensor([[self.trg_vocab.sos_idx]]).repeat(
                 batch["trg"].size(0), 1,
-            )
+            ).to(self.device)
             trg = torch.cat([trg_sos_tokens, batch["trg"][:, :-1]], dim=1)
             decoder_outputs = self.model(
                 batch["src"], batch["src_size"],
@@ -94,14 +94,32 @@ class ModelInterface(pl.LightningModule):
 
         return self.loss(decoder_outputs, gt_trg), decoder_outputs
 
-    def inference(self, src: torch.Tensor, src_size: torch.Tensor) -> List[str]:
-        decoder_output = self.model(
-            src.to(self.device), src_size.to(self.device), max_sequence_len=128,
-        )
+    def inference(
+        self,
+        src: torch.Tensor,
+        src_size: torch.Tensor,
+        max_seq_len: int = 128,
+    ) -> List[str]:
+        if self.model_name == "GRU":
+            decoder_output = self.model(
+                src.to(self.device),
+                src_size.to(self.device),
+                max_sequence_len=max_seq_len,
+            )
+
+            # strip sos token
+            decoder_output = decoder_output[:, 1:]
+        elif self.model_name == "transformer":
+            self.model(src.to(self.device), src_size.to(self.device))
+            decoder_output = torch.zeros(src.size(0), max_seq_len, len(self.trg_vocab))
+            for step in range(1):
+                pass
+        else:
+            raise ValueError(f"Unsupported model: {self.model_name}")
 
         sent_list = []
         for i in range(decoder_output.size(0)):
-            token_ids = decoder_output[i].max(dim=-1).indices[1:]  # strip sos token
+            token_ids = decoder_output[i].max(dim=-1).indices[1:]
             token_list = []
             for tid in token_ids:
                 if tid == self.trg_vocab.eos_idx:
