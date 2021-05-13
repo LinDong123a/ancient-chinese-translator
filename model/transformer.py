@@ -85,7 +85,7 @@ class Transformer(pl.LightningModule):
         """
         return (
             1 - torch.triu(
-                torch.ones(len_seq, len_seq, device=self.device), diagonal=0,
+                torch.ones(len_seq, len_seq, device=self.device), diagonal=1,
             )
         ).bool()
 
@@ -183,7 +183,10 @@ class Transformer(pl.LightningModule):
 
         enc_attn_mask, enc_dec_attn_mask, dec_attn_mask = (
             self.build_src_and_trg_mask(
-                src_token_ids.size(1), src_sizes, trg_token_ids.size(1), 1,
+                src_token_ids.size(1),
+                src_sizes,
+                trg_token_ids.size(1),
+                torch.tensor([1]),
             )
         )
 
@@ -202,7 +205,7 @@ class Transformer(pl.LightningModule):
 
             dec_outputs[:, step] = self.proj_to_vocab(dec_output).squeeze(1)
 
-            trg_token_ids = dec_outputs[:, step].max(dim=-1).unsqueeze(1)
+            trg_token_ids = dec_outputs[:, step].max(dim=-1).indices.unsqueeze(1)
 
         return dec_outputs
 
