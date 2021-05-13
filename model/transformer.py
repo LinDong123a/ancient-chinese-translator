@@ -177,8 +177,9 @@ class Transformer(pl.LightningModule):
     ) -> torch.Tensor:
         batch_size = src_token_ids.size(0)
 
+        trg_sizes = torch.tensor([1] * max_seq_len, device=self.device)
         trg_token_ids = torch.LongTensor(
-            [[self.trg_sos_idx]],
+            [[self.trg_sos_idx] * max_seq_len],
         ).repeat(batch_size, 1).to(self.device)
 
         enc_attn_mask, enc_dec_attn_mask, dec_attn_mask = (
@@ -186,26 +187,30 @@ class Transformer(pl.LightningModule):
                 src_token_ids.size(1),
                 src_sizes,
                 trg_token_ids.size(1),
-                torch.tensor([1]),
+                trg_sizes,
             )
         )
 
-        enc_outputs = self.encoder(src_token_ids, mask=enc_attn_mask)
+        with torch.no_grad():
+            enc_outputs = self.encoder(src_token_ids, mask=enc_attn_mask)
+
         dec_outputs = torch.zeros(
             batch_size, max_seq_len, self.trg_vocab_size, device=self.device,
         )
 
         for step in range(max_seq_len):
-            dec_output = self.decoder(
-                trg_token_ids,
-                enc_outputs,
-                dec_mask=dec_attn_mask,
-                enc_dec_mask=enc_dec_attn_mask,
-            )
+            with torch.no_grad():
+                dec_output = self.decoder(
+                    trg_token_ids,
+                    enc_outputs,
+                    dec_mask=dec_attn_mask,
+                    enc_dec_mask=enc_dec_attn_mask,
+                )
 
             dec_outputs[:, step] = self.proj_to_vocab(dec_output).squeeze(1)
 
-            trg_token_ids = dec_outputs[:, step].max(dim=-1).indices.unsqueeze(1)
+            trg_token_id = dec_outputs[:, step].max(dim=-1).indices
+            trg_token_ids[:, step] = trg_token_id
 
         return dec_outputs
 
