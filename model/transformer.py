@@ -177,7 +177,7 @@ class Transformer(pl.LightningModule):
     ) -> torch.Tensor:
         batch_size = src_token_ids.size(0)
 
-        trg_sizes = torch.tensor([1] * max_seq_len, device=self.device)
+        trg_sizes = torch.tensor([max_seq_len], device=self.device)
         trg_token_ids = torch.LongTensor(
             [[self.trg_sos_idx] * max_seq_len],
         ).repeat(batch_size, 1).to(self.device)
@@ -207,10 +207,11 @@ class Transformer(pl.LightningModule):
                     enc_dec_mask=enc_dec_attn_mask,
                 )
 
-            dec_outputs[:, step] = self.proj_to_vocab(dec_output).squeeze(1)
+            dec_outputs[:, step] = self.proj_to_vocab(dec_output[:, step])
 
             trg_token_id = dec_outputs[:, step].max(dim=-1).indices
-            trg_token_ids[:, step] = trg_token_id
+            if step != max_seq_len - 1:
+                trg_token_ids[:, step + 1] = trg_token_id
 
         return dec_outputs
 

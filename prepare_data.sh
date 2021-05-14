@@ -1,0 +1,1 @@
+python prepare_data.py --data_path Classical-Chinese/data --save_dir dataset --min_freq 10 --dataset_size 120000 --token_type token
