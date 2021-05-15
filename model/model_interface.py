@@ -118,7 +118,7 @@ class ModelInterface(pl.LightningModule):
 
         sent_list = []
         for i in range(decoder_output.size(0)):
-            token_ids = decoder_output[i].max(dim=-1).indices[1:]
+            token_ids = decoder_output[i].max(dim=-1).indices
             token_list = []
             for tid in token_ids:
                 if tid == self.trg_vocab.eos_idx:

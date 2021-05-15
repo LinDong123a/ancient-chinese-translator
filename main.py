@@ -49,7 +49,7 @@ if __name__ == "__main__":
     lr_monitor = LearningRateMonitor(logging_interval='step')
     model_checkpoint = ModelCheckpoint(
         monitor="valid/loss",
-        dirpath=args.default_root_path,
+        dirpath=args.default_root_dir,
         mode="min",
     )
 
