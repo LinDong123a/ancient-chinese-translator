@@ -43,4 +43,4 @@ if __name__ == "__main__":
             torch.LongTensor([len(input_token_list)]),
         )[0]
 
-        print(res_sent)
+        print(f"古文:{res_sent}")
