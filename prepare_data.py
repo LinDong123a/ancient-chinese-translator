@@ -1,10 +1,16 @@
 import argparse
+import logging
 import random
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List, Tuple, Union
 
-from data.tokenization import CharTokenizer
+from data.tokenization import (
+    AncientTokenTokenizer, CharTokenizer, VernacularTokenTokenizer,
+)
+
+logging.basicConfig(level=logging.INFO)
+
 
 TRAIN_FILE_NAME = "train.tsv"
 TEST_FILE_NAME = "test.tsv"
@@ -15,9 +21,11 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_path", type=str, help="原始数据文件夹保存路径")
     parser.add_argument("--num_worker", type=int, default=None, help="处理数据的线程数")
+
     parser.add_argument("--dataset_size", type=int, default=-1, help="数据集的大小")
     parser.add_argument("--test_size", type=float, default=0.1, help="测试集占比")
     parser.add_argument("--valid_size", type=float, default=0.1, help="验证集占比")
+
     parser.add_argument("--save_dir", type=str, default="data", help="要保存处理后的文件路径")
     parser.add_argument(
         "--train_file_name", type=str, default=TRAIN_FILE_NAME, help="保存的训练集文件名",
@@ -28,8 +36,13 @@ def parse_args():
     parser.add_argument(
         "--valid_file_name", type=str, default=VALID_FILE_NAME, help="保存的验证集文件名",
     )
+
     parser.add_argument("--seed", type=int, default=100, help="划分数据集时的随机种子")
     parser.add_argument("--min_freq", type=int, default=100, help="词表的最小值")
+    parser.add_argument(
+        "--token_type", type=str, choices=["char", "token"], default="char",
+        help="划分的词表类型",
+    )
 
     return parser.parse_args()
 
@@ -135,7 +148,12 @@ if __name__ == "__main__":
 
     print("number of pairs", len(all_text_pair))
 
-    src_tokenizer, trg_tokenizer = CharTokenizer(), CharTokenizer()
+    if args.token_type == "char":
+        src_tokenizer, trg_tokenizer = CharTokenizer(), CharTokenizer()
+    elif args.token_type == "token":
+        src_tokenizer, trg_tokenizer = (
+            VernacularTokenTokenizer(), AncientTokenTokenizer(),
+        )
 
     random.seed(args.seed)
     random.shuffle(all_text_pair)
@@ -146,8 +164,6 @@ if __name__ == "__main__":
     test_size, valid_size = args.test_size, args.valid_size
     if test_size + valid_size >= 1:
         raise ValueError("Sum of test size and valid size must be less than 1")
-
-    # all_text_pair = all_text_pair[:120000]
 
     # tokenize text
     for idx, (src_text, trg_text) in enumerate(all_text_pair):

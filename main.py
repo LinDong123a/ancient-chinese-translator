@@ -1,7 +1,7 @@
 import argparse
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import LearningRateMonitor
+from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 
 from data import AncientPairDataModule
 from model import ModelInterface
@@ -47,9 +47,14 @@ if __name__ == "__main__":
 
     # 初始化Trainer的相关回调
     lr_monitor = LearningRateMonitor(logging_interval='step')
+    model_checkpoint = ModelCheckpoint(
+        monitor="valid/loss",
+        dirpath=args.default_root_dir,
+        mode="min",
+    )
 
     trainer = pl.Trainer.from_argparse_args(
-        args, logger=logger, callbacks=[lr_monitor],
+        args, logger=logger, callbacks=[lr_monitor, model_checkpoint],
     )
     trainer.fit(model, datamodule=data_module)
     trainer.test(model, datamodule=data_module)

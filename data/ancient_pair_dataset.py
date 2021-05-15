@@ -13,11 +13,12 @@ logger = logging.getLogger(__name__)
 
 
 class AncientPairDataModule(pl.LightningDataModule):
-    def __init__(self, batch_size: int, data_dir: str):
+    def __init__(self, batch_size: int, data_dir: str, workers: int):
         super().__init__()
 
         self.data_dir = Path(data_dir)
         self.batch_size = batch_size
+        self.workers = workers
 
         if not self.data_dir.exists():
             raise ValueError("Directory or file doesn't exist")
@@ -30,6 +31,7 @@ class AncientPairDataModule(pl.LightningDataModule):
 
         parser.add_argument("--data_dir", type=str, default="./data", help="数据存储路径")
         parser.add_argument("--batch_size", type=int, default=128, help="一个batch的大小")
+        parser.add_argument("--worker", type=int, default=0, help="读取dataset的worker数")
 
         cls.parser = parser
 
@@ -65,13 +67,19 @@ class AncientPairDataModule(pl.LightningDataModule):
         )
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size)
+        return DataLoader(
+            self.train_dataset, batch_size=self.batch_size, num_workers=self.workers,
+        )
 
     def val_dataloader(self):
-        return DataLoader(self.valid_dataset, batch_size=self.batch_size)
+        return DataLoader(
+            self.valid_dataset, batch_size=self.batch_size, num_workers=self.workers,
+        )
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.batch_size)
+        return DataLoader(
+            self.test_dataset, batch_size=self.batch_size, num_workers=self.workers,
+        )
 
 
 class AncientPairDataset(Dataset):
