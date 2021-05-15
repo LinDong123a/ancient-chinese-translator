@@ -63,7 +63,7 @@ class Transformer(pl.LightningModule):
             max_seq_len (int): 最大长度
 
         Returns:
-            torch.BoolTensor: [batch size, max seq len, max seq len]
+            torch.BoolTensor: [batch size, max seq len]
         """
         batch_size = sizes.size(0)
 
@@ -173,47 +173,79 @@ class Transformer(pl.LightningModule):
         self,
         src_token_ids: torch.Tensor,
         src_sizes: torch.Tensor,
+        trg_eos_idx: int,
         max_seq_len: int = 128,
+        beam_size: int = 3,
     ) -> torch.Tensor:
-        batch_size = src_token_ids.size(0)
+        assert src_token_ids.size(0) == 1, "目前仅支持batch size为1的beam search"
 
-        trg_sizes = torch.tensor([max_seq_len], device=self.device)
-        trg_token_ids = torch.LongTensor(
-            [[self.trg_sos_idx] * max_seq_len],
-        ).repeat(batch_size, 1).to(self.device)
+        trg_token_ids = torch.tensor([[self.trg_sos_idx]], device=self.device).long()
 
-        enc_attn_mask, enc_dec_attn_mask, dec_attn_mask = (
-            self.build_src_and_trg_mask(
-                src_token_ids.size(1),
-                src_sizes,
-                trg_token_ids.size(1),
-                trg_sizes,
-            )
+        enc_mask = self.build_pad_mask(src_sizes, src_token_ids.size(1))
+        enc_attn_mask = enc_mask.unsqueeze(2) * enc_mask.unsqueeze(1)
+        enc_dec_mask = enc_mask.unsqueeze(1).repeat(beam_size, max_seq_len, 1)
+
+        gen_seqs = torch.full(
+            (beam_size, max_seq_len), self.trg_sos_idx, device=self.device,
         )
+        beam_log_probs = torch.zeros(beam_size, device=self.device)
+
+        len_map = torch.arange(1, max_seq_len + 1).unsqueeze(0)
 
         with torch.no_grad():
             enc_outputs = self.encoder(src_token_ids, mask=enc_attn_mask)
+            dec_output = self.decoder(trg_token_ids, enc_outputs)
 
-        dec_outputs = torch.zeros(
-            batch_size, max_seq_len, self.trg_vocab_size, device=self.device,
-        )
+            trg_vocab_probs = F.log_softmax(self.proj_to_vocab(dec_output), dim=-1)
+            trg_vocab_probs = trg_vocab_probs[0, -1]
+            beam_log_probs, gen_seqs[:, 1] = trg_vocab_probs.topk(beam_size)
 
-        for step in range(max_seq_len):
-            with torch.no_grad():
+            # [beam size, max src seq len,  d_model]
+            # 通过这种方式使得计算一个step的beam时，能够并行计算完成
+            enc_outputs = enc_outputs.repeat(beam_size, 1, 1)
+
+            ans_idx = 0
+            for step in range(2, max_seq_len):
                 dec_output = self.decoder(
-                    trg_token_ids,
+                    gen_seqs[:, :step],
                     enc_outputs,
-                    dec_mask=dec_attn_mask,
-                    enc_dec_mask=enc_dec_attn_mask,
+                    dec_mask=self.get_subseq_mask(step).unsqueeze(0),
+                    enc_dec_mask=enc_dec_mask[:, :step],
                 )
 
-            dec_outputs[:, step] = self.proj_to_vocab(dec_output[:, step])
+                trg_vocab_probs = F.log_softmax(
+                    self.proj_to_vocab(dec_output[:, -1]), dim=-1,
+                )
+                topk_value, topk_idx = trg_vocab_probs.topk(beam_size, dim=-1)
 
-            trg_token_id = dec_outputs[:, step].max(dim=-1).indices
-            if step != max_seq_len - 1:
-                trg_token_ids[:, step + 1] = trg_token_id
+                topk_value = (
+                    beam_log_probs.view(beam_size, -1) + topk_value
+                ).view(-1)
 
-        return dec_outputs
+                beam_log_probs, beam_topk_idx = topk_value.topk(beam_size)
+
+                beam_prev_idx, beam_cur_idx = (
+                    beam_topk_idx // beam_size, beam_topk_idx % beam_size,
+                )
+                best_beam_idx = topk_idx[beam_prev_idx, beam_cur_idx]
+
+                gen_seqs[:, :step] = gen_seqs[beam_prev_idx, :step]
+                gen_seqs[:, step] = best_beam_idx
+
+                # 以下处理逻辑借鉴自：https://github.com/jadore801120/attention-is-all-you-need-pytorch/blob/master/transformer/Translator.py # noqa
+                # Check if all path finished
+                # -- locate the eos in the generated sequences
+                eos_locs = gen_seqs == trg_eos_idx
+                # -- replace the eos with its position for the length penalty use
+                seq_lens, _ = len_map.masked_fill(~eos_locs, max_seq_len).min(1)
+                # -- check if all beams contain eos
+                if (eos_locs.sum(1) > 0).sum(0).item() == beam_size:
+                    _, ans_idx = beam_log_probs.div(seq_lens.float() ** 0.7).max(0)
+                    ans_idx = ans_idx.item()
+                    break
+
+        # return gen_seqs[beam_log_probs.max(dim=-1).indices.item(), 1:]
+        return gen_seqs[ans_idx][1:seq_lens[ans_idx]]
 
 
 class PositionalEncoding(pl.LightningModule):
@@ -349,8 +381,8 @@ class TransformerDecoder(pl.LightningModule):
         self,
         dec_inputs: torch.Tensor,
         enc_output: torch.Tensor,
-        dec_mask: torch.Tensor,
-        enc_dec_mask: torch.Tensor,
+        dec_mask: torch.Tensor = None,
+        enc_dec_mask: torch.Tensor = None,
     ) -> torch.Tensor:
         """
         Args:
@@ -468,11 +500,14 @@ class MultiHeadAttention(pl.LightningModule):
         vs = self.w_vs(v).view(batch_size, len_v, self.n_head, self.d_v)
 
         # output = [batch size, n_head, len_q, d_v]
+        if mask is not None:
+            mask = mask.unsqueeze(1).repeat(1, self.n_head, 1, 1)
+
         output, _ = self.attn(
             qs.transpose(1, 2),
             ks.transpose(1, 2),
             vs.transpose(1, 2),
-            mask=mask.unsqueeze(1).repeat(1, self.n_head, 1, 1),
+            mask=mask,
         )
 
         # [batch size, len_q, n_head * d_v]

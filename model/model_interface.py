@@ -109,16 +109,22 @@ class ModelInterface(pl.LightningModule):
 
             # strip sos token
             decoder_output = decoder_output[:, 1:]
+
+            batch_token_ids = decoder_output.max(dim=-1)
+
         elif self.model_name == "transformer":
-            decoder_output = self.model.inference(
-                src.to(self.device), src_size.to(self.device), max_seq_len,
-            )
+            batch_token_ids = self.model.inference(
+                src.to(self.device), src_size.to(self.device),
+                trg_eos_idx=self.trg_vocab.eos_idx,
+                max_seq_len=max_seq_len,
+            ).unsqueeze(0)
         else:
             raise ValueError(f"Unsupported model: {self.model_name}")
 
         sent_list = []
-        for i in range(decoder_output.size(0)):
-            token_ids = decoder_output[i].max(dim=-1).indices
+        for i in range(batch_token_ids.size(0)):
+            token_ids = batch_token_ids[i]
+
             token_list = []
             for tid in token_ids:
                 if tid == self.trg_vocab.eos_idx:
