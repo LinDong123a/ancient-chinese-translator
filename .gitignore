@@ -1,5 +1,7 @@
 # user defined files
-
+dataset
+models
+logs
 
 # MacOS file
 .DS_Store

@@ -5,7 +5,7 @@ select = C407,C415,C416,D2,D3,E,F,W,B,B950
 # For more line length flexibility, we use B950 instead of E501,
 ignore = 
     # Ignore unnecessary limits on code styles
-    E226,E227,E228,E402,E501,E721,F821,W293,W503,W504,
+    E226,E227,E228,E402,E501,E721,F821,W293,W503,W504,D205,
     # Subjective limits for not obvious advantages
     B007,B008,D1
 per-file-ignores = __init__.py:F401
