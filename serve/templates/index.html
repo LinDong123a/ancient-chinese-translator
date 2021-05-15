@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <title>现代文至古语翻译系统</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="templates/css/bootstrap.min.css">
+    <script src="templates/js/jquery-3.3.1.min.js"></script>
+    <script src="templates/js/bootstrap.min.js"></script>
+</head>
+
+<body>
+
+    <form class="form-horizontal" style="margin-top: 50px">
+
+        <div class="input-group offset-md-2 col-md-8 mb-3">
+            <div class="input-group-prepend">
+                <span class="input-group-text">现代文</span>
+            </div>
+            <textarea rows="8" class="form-control" aria-label="With textarea" id="text" placeholder="请输入要进行翻译的现代文"></textarea>
+
+            <div class="input-group-prepend">
+                <span class="input-group-text">古文</span>
+            </div>
+            <textarea readonly rows="8" class="form-control" aria-label="With textarea" id="ancient"></textarea>
+        </div>
+
+        <div class="input-group offset-md-8 col-sm-2">
+            <button type="button" class="btn btn-success" style="width: 100%" id="submit">提交</button>
+        </div>
+
+    </form>
+
+    <script src="templates/js/translate.js"></script>
+
+</body>
+
+</html>

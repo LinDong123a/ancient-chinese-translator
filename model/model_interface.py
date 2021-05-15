@@ -18,6 +18,7 @@ class ModelInterface(pl.LightningModule):
         steps_per_epoch: int,
         model_config: dict,
         teacher_forcing: float = 1,
+        model_name: str = None,
     ):
         super().__init__()
 
@@ -28,6 +29,10 @@ class ModelInterface(pl.LightningModule):
 
         self.src_vocab = src_vocab
         self.trg_vocab = trg_vocab
+
+        if model_name is not None:
+            self.model_name = model_name
+            self.load_model_cls(model_name)
 
         self.model = self.model_cls(
             src_vocab_size=len(src_vocab),
@@ -43,20 +48,23 @@ class ModelInterface(pl.LightningModule):
         )
 
     @classmethod
+    def load_model_cls(cls, model_name: str):
+        if model_name == "GRU":
+            from .gru import GRU_Translator
+            cls.model_cls = GRU_Translator
+        elif model_name == "transformer":
+            from .transformer import Transformer
+            cls.model_cls = Transformer
+        else:
+            raise ValueError(f"Unrecognized model: {model_name}")
+
+    @classmethod
     def add_trainer_args(cls, parent_parser: ArgumentParser):
         parent_parser.add_argument("--model", type=str, default="GRU", help="模型类型")
         known_args, _ = parent_parser.parse_known_args()
 
         cls.model_name = known_args.model
-        if known_args.model == "GRU":
-            from .gru import GRU_Translator
-            cls.model_cls = GRU_Translator
-        elif known_args.model == "transformer":
-            from .transformer import Transformer
-            cls.model_cls = Transformer
-        else:
-            raise ValueError(f"Unrecognized model: {known_args.model}")
-
+        cls.load_model_cls(known_args.model)
         cls.model_cls.add_model_args(parent_parser)
 
         parser = parent_parser.add_argument_group("trainer")
