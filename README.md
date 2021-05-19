@@ -60,8 +60,16 @@ pytorch-lightning框架，因此不再对该问题进行进一步的排查。
 
 ### 生成数据
 
+数据的生成可以通过`prepare_data.py`调用生成，生成的方式及调用的方式可见`scripts/prepare_data.sh`
+
 ### 训练模型
+
+模型训练通过`main.py`调用生成，调用方式可见`scripts/train.sh`
 
 ### 模型生成测试
 
+训练完成的模型，可以通过调用`inferece.py`在命令行上做测试，调用方式可见`scripts/inference.sh`
+
 ### 模型服务部署
+
+该项目用flask进行了一个简易的server搭建，运行`python -m serve`即可开启服务。
