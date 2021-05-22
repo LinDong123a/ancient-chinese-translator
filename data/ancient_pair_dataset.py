@@ -31,7 +31,7 @@ class AncientPairDataModule(pl.LightningDataModule):
 
         parser.add_argument("--data_dir", type=str, default="./data", help="数据存储路径")
         parser.add_argument("--batch_size", type=int, default=128, help="一个batch的大小")
-        parser.add_argument("--worker", type=int, default=0, help="读取dataset的worker数")
+        parser.add_argument("--workers", type=int, default=0, help="读取dataset的worker数")
 
         cls.parser = parser
 
